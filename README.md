@@ -33,9 +33,15 @@ ACME can validate; it flips to HTTPS once its cert exists.
 1. Add the domain and set its state — the nginx config is applied on save (HTTP-only until a cert exists).
 2. Click **🔒 renew cert** on the domain — runs `sudo site-cert <domain>`, then re-applies so it serves over HTTPS.
 
-Use **🔒 Renew All Certs** to renew every served domain's cert at once. Parked
-domains need no cert. The Linode auto-sync only seeds the registry (as parked);
-it never writes nginx — that happens when you save a domain here.
+Use **🔒 Renew All Certs** to renew every served domain's cert at once.
+
+**Hands-off provisioning.** The hourly Linode sync (`scripts/sync-linode-domains.js`)
+does more than seed the registry: it ensures every managed domain has an nginx
+vhost (a parked HTTP-only one if new), and for any domain whose DNS already
+points at this server (`SERVER_IP`) with no cert yet, it issues the cert and
+flips the vhost to HTTPS — automatically, no clicks. So pointing a domain's DNS
+here is the only action needed; within the hour it's fully served over HTTPS.
+Set `SYNC_PROVISION=0` to revert to registry-only sync.
 
 **Install the cert script (root, once):**
 ```bash

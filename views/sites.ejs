@@ -125,7 +125,15 @@
                 <input type="text"   name="note"   value="<%= d.note   || '' %>" placeholder="note"        style="width:140px">
                 <button type="submit" class="btn">save</button>
               </form>
-              <div style="display:flex; gap:.35rem; margin-top:.4rem">
+              <div style="display:flex; gap:.35rem; margin-top:.4rem; flex-wrap:wrap">
+                <form method="POST" action="/<%= d.domain %>/sync">
+                  <button class="btn" title="Re-apply this domain's nginx config">⟳ sync</button>
+                </form>
+                <% if (d.state !== 'parked') { %>
+                <form method="POST" action="/<%= d.domain %>/cert" onsubmit="return confirm('Renew the shared platform cert (covers all served domains, incl. <%= d.domain %>)?')">
+                  <button class="btn" title="Renew the shared platform cert">🔒 renew cert</button>
+                </form>
+                <% } %>
                 <form method="POST" action="/<%= d.domain %>/remove" onsubmit="return confirm('Remove <%= d.domain %>?')">
                   <button class="btn btn-danger">remove</button>
                 </form>

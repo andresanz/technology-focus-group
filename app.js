@@ -198,6 +198,39 @@ app.post('/:domain/service/:action', requireAuth, (req, res) => {
   res.redirect('/');
 });
 
+// Re-apply a single domain's nginx config on demand. Saving already does this
+// automatically; this is for re-applying after the nginx template changes.
+app.post('/:domain/sync', requireAuth, (req, res) => {
+  const row = getDomain(req.params.domain);
+  if (!row) { req.flash('error', 'Not found'); return res.redirect('/'); }
+  try {
+    applyDomain(row);
+    req.flash('success', `${row.domain} re-applied to nginx (${row.state})`);
+  } catch (e) {
+    req.flash('error', `apply failed: ${e.message}`);
+  }
+  res.redirect('/');
+});
+
+// Renew the shared platform cert from a single domain's row. The cert is one
+// SAN cert covering every served domain, so this renews for all of them (and
+// guarantees this domain is included).
+app.post('/:domain/cert', requireAuth, (req, res) => {
+  const row = getDomain(req.params.domain);
+  if (!row) { req.flash('error', 'Not found'); return res.redirect('/'); }
+  if (row.state === 'parked') {
+    req.flash('error', `${row.domain} is parked — parked domains don't get a cert`);
+    return res.redirect('/');
+  }
+  try {
+    const n = renewPlatformCert();
+    req.flash('success', `Platform cert renewed (${n} served domains, incl. ${row.domain})`);
+  } catch (e) {
+    req.flash('error', `Cert renewal failed: ${e.message}`);
+  }
+  res.redirect('/');
+});
+
 // Remove domain
 app.post('/:domain/remove', requireAuth, (req, res) => {
   const row = getDomain(req.params.domain);
@@ -208,29 +241,28 @@ app.post('/:domain/remove', requireAuth, (req, res) => {
   res.redirect('/');
 });
 
-// Renew platform cert — only served (live/redirect) domains go on the SAN cert.
-// Parked domains are excluded: they don't need a cert, and including every
-// registered domain blows past Let's Encrypt's 100-names-per-cert limit
+// Renew the shared platform cert — only served (live/redirect) domains go on the
+// SAN cert. Parked domains are excluded: they don't need a cert, and including
+// every registered domain blows past Let's Encrypt's 100-names-per-cert limit
 // (each domain also carries a www. SAN, so the ceiling is ~50 domains).
-app.post('/platform-cert', requireAuth, (req, res) => {
+// Throws on no served domains or over the limit; returns the count on success.
+function renewPlatformCert() {
   const domains = allDomains()
     .filter(r => r.state === 'live' || r.state === 'redirect')
     .map(r => r.domain);
-  if (!domains.length) {
-    req.flash('error', 'No live/redirect domains to certify (parked domains are skipped)');
-    return res.redirect('/');
-  }
+  if (!domains.length) throw new Error('No live/redirect domains to certify (parked domains are skipped)');
   if (domains.length * 2 > 100) {
-    req.flash('error', `${domains.length} served domains exceed the 100-name cert limit (each adds a www. SAN). Reduce served domains or split certs.`);
-    return res.redirect('/');
+    throw new Error(`${domains.length} served domains exceed the 100-name cert limit (each adds a www. SAN). Reduce served domains or split certs.`);
   }
+  execSync(`sudo /usr/local/bin/platform-cert ${domains.join(' ')}`, { timeout: 120_000 });
+  reloadNginx();
+  return domains.length;
+}
+
+app.post('/platform-cert', requireAuth, (req, res) => {
   try {
-    execSync(
-      `sudo /usr/local/bin/platform-cert ${domains.join(' ')}`,
-      { timeout: 120_000 }
-    );
-    reloadNginx();
-    req.flash('success', `Platform cert renewed for ${domains.length} served domain(s)`);
+    const n = renewPlatformCert();
+    req.flash('success', `Platform cert renewed for ${n} served domain(s)`);
   } catch (e) {
     req.flash('error', `Cert renewal failed: ${e.message}`);
   }

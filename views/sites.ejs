@@ -136,6 +136,22 @@
                   <button class="btn btn-danger">remove</button>
                 </form>
               </div>
+              <% if (d.state === 'live') { %>
+              <div style="display:flex; gap:.35rem; margin-top:.4rem; align-items:center">
+                <span class="muted" style="font-size:.75rem">service:
+                  <strong style="color:<%= d.svc==='active'?'#16a34a':(d.svc==='failed'?'#dc2626':'#6b7280') %>"><%= d.svc || 'unknown' %></strong>
+                </span>
+                <form method="POST" action="/<%= d.domain %>/service/install">
+                  <button class="btn">⚙ install service</button>
+                </form>
+                <form method="POST" action="/<%= d.domain %>/service/restart">
+                  <button class="btn">▶ restart</button>
+                </form>
+                <form method="POST" action="/<%= d.domain %>/service/stop">
+                  <button class="btn">■ stop</button>
+                </form>
+              </div>
+              <% } %>
             </details>
           </td>
         </tr>

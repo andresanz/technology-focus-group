@@ -9,8 +9,9 @@ const { execSync } = require('child_process');
 const path         = require('path');
 const fs           = require('fs');
 
-const db    = require('./lib/db');
-const nginx = require('./lib/nginx');
+const db      = require('./lib/db');
+const nginx   = require('./lib/nginx');
+const service = require('./lib/service');
 
 const app  = express();
 const PORT = process.env.PORT || 4000;
@@ -95,6 +96,10 @@ function syncDomain(row) {
 
 app.get('/', requireAuth, (req, res) => {
   const domains = allDomains();
+  // Annotate live domains with their systemd service state (cheap: few live).
+  for (const d of domains) {
+    d.svc = d.state === 'live' ? service.status(d.domain) : null;
+  }
   const counts  = {
     total:    domains.length,
     live:     domains.filter(d => d.state === 'live').length,
@@ -148,6 +153,38 @@ app.post('/:domain/sync', requireAuth, (req, res) => {
   } catch (e) {
     if (snap) fs.writeFileSync(confPath, snap); else try { fs.unlinkSync(confPath); } catch {}
     req.flash('error', `sync failed: ${e.message}`);
+  }
+  res.redirect('/');
+});
+
+// Install/enable the systemd service for a live domain (wired to its port).
+app.post('/:domain/service/install', requireAuth, (req, res) => {
+  const row = getDomain(req.params.domain);
+  if (!row) { req.flash('error', 'Not found'); return res.redirect('/'); }
+  if (row.state !== 'live' || !row.port) {
+    req.flash('error', 'Service is only for live domains with a port');
+    return res.redirect('/');
+  }
+  try {
+    const dir = service.install(row.domain, row.port);
+    req.flash('success', `Service tfg-site@${row.domain} installed (port ${row.port}). Put your app in ${dir} and start it.`);
+  } catch (e) {
+    req.flash('error', `Service install failed: ${e.message}`);
+  }
+  res.redirect('/');
+});
+
+// Start/restart/stop a domain's service.
+app.post('/:domain/service/:action', requireAuth, (req, res) => {
+  const { action } = req.params;
+  if (!['restart', 'stop'].includes(action)) { req.flash('error', 'Unknown action'); return res.redirect('/'); }
+  const row = getDomain(req.params.domain);
+  if (!row) { req.flash('error', 'Not found'); return res.redirect('/'); }
+  try {
+    if (action === 'restart') { service.restart(row.domain); req.flash('success', `${row.domain} service restarted`); }
+    else                      { service.stop(row.domain);    req.flash('success', `${row.domain} service stopped`); }
+  } catch (e) {
+    req.flash('error', `${action} failed: ${e.message}`);
   }
   res.redirect('/');
 });

@@ -49,9 +49,6 @@
     <form method="POST" action="/platform-cert" onsubmit="return confirm('Renew platform cert for all <%= counts.total %> domains?')">
       <button class="btn">🔒 Renew Cert</button>
     </form>
-    <form method="POST" action="/sync-all" onsubmit="return confirm('Sync all <%= counts.total %> domains to nginx?')">
-      <button class="btn">⟳ Sync All</button>
-    </form>
     <form method="POST" action="/logout">
       <button class="btn">Sign out</button>
     </form>
@@ -129,9 +126,6 @@
                 <button type="submit" class="btn">save</button>
               </form>
               <div style="display:flex; gap:.35rem; margin-top:.4rem">
-                <form method="POST" action="/<%= d.domain %>/sync">
-                  <button class="btn">⟳ sync</button>
-                </form>
                 <form method="POST" action="/<%= d.domain %>/remove" onsubmit="return confirm('Remove <%= d.domain %>?')">
                   <button class="btn btn-danger">remove</button>
                 </form>

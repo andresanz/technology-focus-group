@@ -92,6 +92,21 @@ function syncDomain(row) {
   if (row.state === 'redirect' && row.target) nginx.writeRedirectHtml(row.domain, row.target);
 }
 
+// Write a domain's nginx config and reload, rolling the config file back if
+// nginx rejects it. Called automatically whenever a domain is saved — there is
+// no separate "sync" step.
+function applyDomain(row) {
+  const confPath = path.join(process.env.NGINX_SITES_AVAILABLE || '/etc/nginx/sites-available', row.domain);
+  const snap = fs.existsSync(confPath) ? fs.readFileSync(confPath) : null;
+  try {
+    syncDomain(row);
+    reloadNginx();
+  } catch (e) {
+    if (snap) fs.writeFileSync(confPath, snap); else { try { fs.unlinkSync(confPath); } catch {} }
+    throw e;
+  }
+}
+
 // ── Routes ────────────────────────────────────────────────────────────────────
 
 app.get('/', requireAuth, (req, res) => {
@@ -120,7 +135,13 @@ app.post('/add', requireAuth, (req, res) => {
   catch (e) { req.flash('error', e.message); return res.redirect('/'); }
   db.prepare(`INSERT INTO domains (domain, state, target, port, note) VALUES (?, ?, ?, ?, ?)`)
     .run(domain.trim().toLowerCase(), state, target || null, assignedPort, note || null);
-  req.flash('success', `${domain} added${state === 'live' && assignedPort ? ` on port ${assignedPort}` : ''}`);
+  const portNote = state === 'live' && assignedPort ? ` on port ${assignedPort}` : '';
+  try {
+    applyDomain(getDomain(domain.trim().toLowerCase()));
+    req.flash('success', `${domain} added${portNote} & applied to nginx`);
+  } catch (e) {
+    req.flash('error', `${domain} added${portNote} but nginx apply failed: ${e.message}`);
+  }
   res.redirect('/');
 });
 
@@ -136,23 +157,11 @@ app.post('/:domain/save', requireAuth, (req, res) => {
   db.prepare(`UPDATE domains SET state=?, target=?, port=?, note=?, updated_at=datetime('now') WHERE id=?`)
     .run(newState, target || null, newPort, note || null, row.id);
   const portNote = newState === 'live' && newPort && !row.port ? ` — assigned port ${newPort}` : '';
-  req.flash('success', `${row.domain} saved${portNote} — sync nginx to apply`);
-  res.redirect('/');
-});
-
-// Sync single domain to nginx
-app.post('/:domain/sync', requireAuth, (req, res) => {
-  const row = getDomain(req.params.domain);
-  if (!row) { req.flash('error', 'Not found'); return res.redirect('/'); }
-  const confPath = require('path').join(process.env.NGINX_SITES_AVAILABLE || '/etc/nginx/sites-available', row.domain);
-  const snap = fs.existsSync(confPath) ? fs.readFileSync(confPath) : null;
   try {
-    syncDomain(row);
-    reloadNginx();
-    req.flash('success', `${row.domain} synced (${row.state})`);
+    applyDomain(getDomain(row.domain));
+    req.flash('success', `${row.domain} saved${portNote} & applied to nginx`);
   } catch (e) {
-    if (snap) fs.writeFileSync(confPath, snap); else try { fs.unlinkSync(confPath); } catch {}
-    req.flash('error', `sync failed: ${e.message}`);
+    req.flash('error', `${row.domain} saved${portNote} but nginx apply failed: ${e.message}`);
   }
   res.redirect('/');
 });
@@ -185,39 +194,6 @@ app.post('/:domain/service/:action', requireAuth, (req, res) => {
     else                      { service.stop(row.domain);    req.flash('success', `${row.domain} service stopped`); }
   } catch (e) {
     req.flash('error', `${action} failed: ${e.message}`);
-  }
-  res.redirect('/');
-});
-
-// Sync all domains to nginx
-app.post('/sync-all', requireAuth, (req, res) => {
-  const rows     = allDomains();
-  const snapDir  = fs.mkdtempSync(require('path').join(require('os').tmpdir(), 'nginx-snap-'));
-  const AVAIL    = process.env.NGINX_SITES_AVAILABLE || '/etc/nginx/sites-available';
-  let ok = 0;
-  const errors = [];
-
-  try {
-    for (const row of rows) {
-      const f = path.join(AVAIL, row.domain);
-      if (fs.existsSync(f)) fs.copyFileSync(f, path.join(snapDir, row.domain));
-    }
-    for (const row of rows) {
-      try { syncDomain(row); ok++; }
-      catch (e) { errors.push(`${row.domain}: ${e.message}`); }
-    }
-    try { execSync('nginx -t 2>&1', { timeout: 10_000 }); }
-    catch (e) {
-      for (const f of fs.readdirSync(snapDir)) fs.copyFileSync(path.join(snapDir, f), path.join(AVAIL, f));
-      throw new Error(`nginx -t failed, configs restored: ${e.stdout?.toString() || e.message}`);
-    }
-    execSync('systemctl reload nginx', { timeout: 10_000 });
-    if (errors.length) req.flash('error', `${ok} synced, errors: ${errors.slice(0, 3).join('; ')}`);
-    else               req.flash('success', `${ok} domains synced to nginx`);
-  } catch (e) {
-    req.flash('error', e.message);
-  } finally {
-    try { fs.rmSync(snapDir, { recursive: true, force: true }); } catch {}
   }
   res.redirect('/');
 });

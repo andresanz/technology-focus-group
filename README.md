@@ -22,11 +22,15 @@ node app.js            # listens on 127.0.0.1:4000
 
 All domains share a single Let's Encrypt SAN cert at `/etc/letsencrypt/live/platform/`.
 
-**First time / adding a domain:**
-1. Add the domain in the admin and set its state.
-2. Click **⟳ Sync All** to write nginx configs (HTTP-only until cert is ready).
-3. Click **🔒 Renew Cert** — runs `sudo platform-cert <all domains>` to issue/expand the cert.
-4. Click **⟳ Sync All** again — all configs now point at the platform cert.
+Saving a domain in the admin **writes its nginx config and reloads immediately**
+— there is no separate sync step. (A bad config rolls back automatically.)
+
+**First time / adding a live or redirect domain:**
+1. Add the domain in the admin and set its state — the nginx config is applied on save.
+2. Click **🔒 Renew Cert** — runs `sudo platform-cert <served domains>` to issue/expand the shared cert, then reloads nginx so the new domain serves over the platform cert.
+
+Parked domains need no cert. The Linode auto-sync only seeds the registry (as
+parked); it never writes nginx — that happens when you save a domain here.
 
 **Install the cert script (root, once):**
 ```bash
@@ -50,10 +54,10 @@ Edit `assets/parked.html`, commit, then re-run the script to redeploy.
 
 ## Redirect files
 
-Written automatically on sync to `/var/www/redirects/<domain>/index.html`. Updating the target URL and syncing rewrites the file — no nginx reload needed beyond the initial config write.
+Written automatically when a redirect domain is saved, to `/var/www/redirects/<domain>/index.html`. Updating the target URL and saving rewrites the file.
 
 ## Nginx
 
-Configs are written to `/etc/nginx/sites-available/<domain>` and mirrored to `sites-enabled/`. The app needs `nginx -t && systemctl reload nginx` after config changes (done automatically on sync).
+Configs are written to `/etc/nginx/sites-available/<domain>` and mirrored to `sites-enabled/`, then `nginx -t && systemctl reload nginx` runs automatically each time a domain is saved.
 
 Certbot auto-renewal (`/etc/cron.d/certbot` or systemd timer) handles ongoing renewal — the `--cert-name platform` flag keeps it at the same path.

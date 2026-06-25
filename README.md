@@ -38,7 +38,15 @@ echo 'www-data ALL=(ALL) NOPASSWD: /usr/local/bin/platform-cert *' \
 
 ## Parked page
 
-Put an `index.html` at `/var/www/parked/index.html`. Nginx falls back to it for all parked domains.
+The shared parked page lives in the repo at `assets/parked.html` (a "domain for
+sale" page that fills in the visitor's domain + a mailto inquiry link via JS).
+Install it to the webroot — nginx falls back to it for all parked domains:
+
+```bash
+sudo ./scripts/deploy-assets.sh   # copies assets/parked.html -> /var/www/parked/index.html
+```
+
+Edit `assets/parked.html`, commit, then re-run the script to redeploy.
 
 ## Redirect files
 

@@ -54,6 +54,34 @@ function getDomain(domain) {
   return db.prepare('SELECT * FROM domains WHERE domain = ?').get(domain);
 }
 
+// ── Port allocation ─────────────────────────────────────────────────────────
+// Live domains proxy to 127.0.0.1:<port>. Rather than tracking ports by hand,
+// the admin hands out the lowest free port from a pool. A domain keeps its
+// port for life once assigned (even while parked), so it never shifts under a
+// running app; an explicit port in the form always overrides.
+
+const PORT_POOL_START = parseInt(process.env.PORT_POOL_START || '3001', 10);
+const PORT_POOL_END   = parseInt(process.env.PORT_POOL_END   || '3999', 10);
+
+function nextFreePort() {
+  const used = new Set(
+    db.prepare('SELECT port FROM domains WHERE port IS NOT NULL').all().map(r => r.port)
+  );
+  for (let p = PORT_POOL_START; p <= PORT_POOL_END; p++) {
+    if (!used.has(p)) return p;
+  }
+  throw new Error(`no free port in pool ${PORT_POOL_START}-${PORT_POOL_END}`);
+}
+
+// Decide which port to store: explicit form value wins, then any port already
+// allocated to this domain, then auto-assign when it first goes live.
+function resolvePort(state, explicit, existing) {
+  if (explicit) return parseInt(explicit, 10);
+  if (existing) return existing;
+  if (state === 'live') return nextFreePort();
+  return null;
+}
+
 function reloadNginx() {
   execSync('nginx -t && systemctl reload nginx', { timeout: 10_000 });
 }
@@ -82,9 +110,12 @@ app.post('/add', requireAuth, (req, res) => {
   const DOMAIN_RE = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z]{2,})+$/;
   if (!DOMAIN_RE.test(domain)) { req.flash('error', 'Invalid domain'); return res.redirect('/'); }
   if (getDomain(domain))       { req.flash('error', `${domain} already exists`); return res.redirect('/'); }
+  let assignedPort;
+  try { assignedPort = resolvePort(state, port, null); }
+  catch (e) { req.flash('error', e.message); return res.redirect('/'); }
   db.prepare(`INSERT INTO domains (domain, state, target, port, note) VALUES (?, ?, ?, ?, ?)`)
-    .run(domain.trim().toLowerCase(), state, target || null, port ? parseInt(port, 10) : null, note || null);
-  req.flash('success', `${domain} added`);
+    .run(domain.trim().toLowerCase(), state, target || null, assignedPort, note || null);
+  req.flash('success', `${domain} added${state === 'live' && assignedPort ? ` on port ${assignedPort}` : ''}`);
   res.redirect('/');
 });
 
@@ -93,9 +124,14 @@ app.post('/:domain/save', requireAuth, (req, res) => {
   const row = getDomain(req.params.domain);
   if (!row) { req.flash('error', 'Not found'); return res.redirect('/'); }
   const { state, target, port, note } = req.body;
+  const newState = state || row.state;
+  let newPort;
+  try { newPort = resolvePort(newState, port, row.port); }
+  catch (e) { req.flash('error', e.message); return res.redirect('/'); }
   db.prepare(`UPDATE domains SET state=?, target=?, port=?, note=?, updated_at=datetime('now') WHERE id=?`)
-    .run(state || row.state, target || null, port ? parseInt(port, 10) : null, note || null, row.id);
-  req.flash('success', `${row.domain} saved — sync nginx to apply`);
+    .run(newState, target || null, newPort, note || null, row.id);
+  const portNote = newState === 'live' && newPort && !row.port ? ` — assigned port ${newPort}` : '';
+  req.flash('success', `${row.domain} saved${portNote} — sync nginx to apply`);
   res.redirect('/');
 });
 

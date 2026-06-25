@@ -85,7 +85,7 @@
             </select>
           </div>
           <div class="f" id="aTarget" style="display:none"><label>Target URL</label><input type="text" name="target" placeholder="https://example.com" style="width:220px"></div>
-          <div class="f" id="aPort"   style="display:none"><label>Port</label><input type="number" name="port" placeholder="3001" style="width:80px"></div>
+          <div class="f" id="aPort"   style="display:none"><label>Port</label><input type="number" name="port" placeholder="auto" title="Leave blank to auto-assign the next free port" style="width:80px"></div>
           <div class="f"><label>Note</label><input type="text" name="note" placeholder="optional" style="width:150px"></div>
           <div class="f"><label>&nbsp;</label><button type="submit" class="btn btn-primary">Add</button></div>
         </div>
@@ -124,7 +124,7 @@
                   <% ['live','redirect','parked'].forEach(s => { %><option value="<%= s %>" <%= d.state===s?'selected':'' %>><%= s %></option><% }) %>
                 </select>
                 <input type="text"   name="target" value="<%= d.target || '' %>" placeholder="target URL" style="width:180px">
-                <input type="number" name="port"   value="<%= d.port   || '' %>" placeholder="port"        style="width:70px">
+                <input type="number" name="port"   value="<%= d.port   || '' %>" placeholder="auto"        title="Blank = auto-assign next free port when live" style="width:70px">
                 <input type="text"   name="note"   value="<%= d.note   || '' %>" placeholder="note"        style="width:140px">
                 <button type="submit" class="btn">save</button>
               </form>

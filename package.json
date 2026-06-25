@@ -11,6 +11,7 @@
     "better-sqlite3": "^9.4.3",
     "connect-flash": "^0.1.1",
     "cookie-session": "^2.1.0",
+    "dotenv": "^16.4.0",
     "ejs": "^3.1.10",
     "express": "^4.19.2"
   }

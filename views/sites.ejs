@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Domains</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #f9fafb; color: #111; font-size: .9rem; }
+  header { background: #fff; border-bottom: 1px solid #e5e7eb; padding: .75rem 1.5rem; display: flex; align-items: center; justify-content: space-between; }
+  header h1 { font-size: 1rem; font-weight: 600; }
+  .actions { display: flex; gap: .5rem; }
+  main { max-width: 900px; margin: 1.5rem auto; padding: 0 1rem; }
+  .stats { display: flex; gap: .75rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
+  .stat { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: .6rem 1rem; min-width: 90px; }
+  .stat .n { font-size: 1.4rem; font-weight: 700; line-height: 1; }
+  .stat .l { font-size: .72rem; color: #6b7280; margin-top: .2rem; }
+  .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; margin-bottom: 1rem; }
+  .card-head { padding: .6rem 1rem; font-weight: 600; font-size: .8rem; color: #6b7280; border-bottom: 1px solid #e5e7eb; cursor: pointer; }
+  .card-body { padding: .75rem 1rem; }
+  .add-row { display: flex; gap: .5rem; flex-wrap: wrap; align-items: flex-end; }
+  .add-row label { font-size: .72rem; color: #6b7280; display: block; margin-bottom: .2rem; }
+  .add-row .f { display: flex; flex-direction: column; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; padding: .5rem .75rem; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; font-weight: 600; border-bottom: 1px solid #e5e7eb; }
+  td { padding: .5rem .75rem; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #f9fafb; }
+  .badge { display: inline-block; padding: .15em .5em; border-radius: 4px; font-size: .72rem; font-weight: 700; }
+  .live     { background: #dcfce7; color: #15803d; }
+  .redirect { background: #dbeafe; color: #1d4ed8; }
+  .parked   { background: #f3f4f6; color: #6b7280; }
+  input, select { padding: .3rem .5rem; border: 1px solid #d1d5db; border-radius: 5px; font-size: .82rem; }
+  btn, .btn { display: inline-block; padding: .3rem .7rem; background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 5px; font-size: .8rem; cursor: pointer; text-decoration: none; color: #111; }
+  .btn-primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+  .btn-danger  { background: #fee2e2; border-color: #fca5a5; color: #dc2626; }
+  .flash-ok  { background: #dcfce7; border: 1px solid #86efac; color: #15803d; padding: .5rem .75rem; border-radius: 6px; margin-bottom: 1rem; font-size: .85rem; }
+  .flash-err { background: #fee2e2; border: 1px solid #fca5a5; color: #dc2626; padding: .5rem .75rem; border-radius: 6px; margin-bottom: 1rem; font-size: .85rem; }
+  details summary { list-style: none; }
+  details summary::-webkit-details-marker { display: none; }
+  .row-form { display: flex; gap: .35rem; flex-wrap: wrap; align-items: center; margin-top: .4rem; }
+  .muted { color: #6b7280; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Technology Focus Group · Domains</h1>
+  <div class="actions">
+    <form method="POST" action="/platform-cert" onsubmit="return confirm('Renew platform cert for all <%= counts.total %> domains?')">
+      <button class="btn">🔒 Renew Cert</button>
+    </form>
+    <form method="POST" action="/sync-all" onsubmit="return confirm('Sync all <%= counts.total %> domains to nginx?')">
+      <button class="btn">⟳ Sync All</button>
+    </form>
+    <form method="POST" action="/logout">
+      <button class="btn">Sign out</button>
+    </form>
+  </div>
+</header>
+
+<main>
+  <% if (flash.success && flash.success.length) { %><div class="flash-ok"><%= flash.success[0] %></div><% } %>
+  <% if (flash.error   && flash.error.length)   { %><div class="flash-err"><%= flash.error[0]   %></div><% } %>
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat"><div class="n"><%= counts.total %></div><div class="l">Total</div></div>
+    <div class="stat"><div class="n" style="color:#15803d"><%= counts.live %></div><div class="l">Live</div></div>
+    <div class="stat"><div class="n" style="color:#1d4ed8"><%= counts.redirect %></div><div class="l">Redirect</div></div>
+    <div class="stat"><div class="n" style="color:#6b7280"><%= counts.parked %></div><div class="l">Parked</div></div>
+  </div>
+
+  <!-- Add domain -->
+  <details class="card" style="overflow:visible">
+    <summary class="card-head">+ Add domain</summary>
+    <div class="card-body">
+      <form method="POST" action="/add">
+        <div class="add-row">
+          <div class="f"><label>Domain</label><input type="text" name="domain" placeholder="example.com" required style="width:200px"></div>
+          <div class="f"><label>State</label>
+            <select name="state" onchange="document.getElementById('aTarget').style.display=this.value==='redirect'?'':'none';document.getElementById('aPort').style.display=this.value==='live'?'':'none'">
+              <option value="parked">parked</option>
+              <option value="redirect">redirect</option>
+              <option value="live">live</option>
+            </select>
+          </div>
+          <div class="f" id="aTarget" style="display:none"><label>Target URL</label><input type="text" name="target" placeholder="https://example.com" style="width:220px"></div>
+          <div class="f" id="aPort"   style="display:none"><label>Port</label><input type="number" name="port" placeholder="3001" style="width:80px"></div>
+          <div class="f"><label>Note</label><input type="text" name="note" placeholder="optional" style="width:150px"></div>
+          <div class="f"><label>&nbsp;</label><button type="submit" class="btn btn-primary">Add</button></div>
+        </div>
+      </form>
+    </div>
+  </details>
+
+  <!-- Domain table -->
+  <div class="card">
+    <% if (!domains.length) { %>
+      <p style="padding:2rem; text-align:center; color:#6b7280">No domains yet. Add one above.</p>
+    <% } else { %>
+    <table>
+      <thead><tr>
+        <th>Domain</th>
+        <th>State</th>
+        <th>Target / Port</th>
+        <th>Note</th>
+        <th></th>
+      </tr></thead>
+      <tbody>
+      <% domains.forEach(d => { %>
+        <tr>
+          <td><a href="https://<%= d.domain %>" target="_blank" rel="noopener" style="font-weight:600; color:#111; text-decoration:none"><%= d.domain %></a></td>
+          <td><span class="badge <%= d.state %>"><%= d.state %></span></td>
+          <td class="muted" style="max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">
+            <% if (d.state === 'redirect') { %>→ <%= d.target || '—' %><% } %>
+            <% if (d.state === 'live')     { %>:<%= d.port || '—' %><% } %>
+          </td>
+          <td class="muted" style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap"><%= d.note || '' %></td>
+          <td>
+            <details>
+              <summary style="cursor:pointer; color:#2563eb; font-size:.8rem">edit</summary>
+              <form method="POST" action="/<%= d.domain %>/save" class="row-form">
+                <select name="state">
+                  <% ['live','redirect','parked'].forEach(s => { %><option value="<%= s %>" <%= d.state===s?'selected':'' %>><%= s %></option><% }) %>
+                </select>
+                <input type="text"   name="target" value="<%= d.target || '' %>" placeholder="target URL" style="width:180px">
+                <input type="number" name="port"   value="<%= d.port   || '' %>" placeholder="port"        style="width:70px">
+                <input type="text"   name="note"   value="<%= d.note   || '' %>" placeholder="note"        style="width:140px">
+                <button type="submit" class="btn">save</button>
+              </form>
+              <div style="display:flex; gap:.35rem; margin-top:.4rem">
+                <form method="POST" action="/<%= d.domain %>/sync">
+                  <button class="btn">⟳ sync</button>
+                </form>
+                <form method="POST" action="/<%= d.domain %>/remove" onsubmit="return confirm('Remove <%= d.domain %>?')">
+                  <button class="btn btn-danger">remove</button>
+                </form>
+              </div>
+            </details>
+          </td>
+        </tr>
+      <% }) %>
+      </tbody>
+    </table>
+    <% } %>
+  </div>
+</main>
+</body>
+</html>

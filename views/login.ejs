@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Login</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #f5f5f5; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+  .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 2rem; width: 100%; max-width: 340px; }
+  h1 { font-size: 1.1rem; margin-bottom: 1.25rem; color: #111; }
+  input { width: 100%; padding: .55rem .75rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: .95rem; margin-bottom: .75rem; }
+  button { width: 100%; padding: .55rem; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-size: .95rem; cursor: pointer; }
+  .error { color: #dc2626; font-size: .85rem; margin-bottom: .75rem; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Technology Focus Group</h1>
+  <% if (flash.error && flash.error.length) { %><div class="error"><%= flash.error[0] %></div><% } %>
+  <form method="POST" action="/login">
+    <input type="password" name="password" placeholder="Password" autofocus required>
+    <button type="submit">Sign in</button>
+  </form>
+</div>
+</body>
+</html>

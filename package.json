@@ -1,0 +1,17 @@
+{
+  "name": "technology-focus-group",
+  "version": "0.1.0",
+  "description": "Admin + multi-domain host — single cert, clean slate",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "node --watch app.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.4.3",
+    "connect-flash": "^0.1.1",
+    "cookie-session": "^2.1.0",
+    "ejs": "^3.1.10",
+    "express": "^4.19.2"
+  }
+}

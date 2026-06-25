@@ -46,8 +46,8 @@
 <header>
   <h1>Technology Focus Group · Domains</h1>
   <div class="actions">
-    <form method="POST" action="/platform-cert" onsubmit="return confirm('Renew platform cert for all <%= counts.total %> domains?')">
-      <button class="btn">🔒 Renew Cert</button>
+    <form method="POST" action="/renew-all-certs" onsubmit="return confirm('Renew each served domain\'s own cert?')">
+      <button class="btn">🔒 Renew All Certs</button>
     </form>
     <form method="POST" action="/logout">
       <button class="btn">Sign out</button>
@@ -130,8 +130,8 @@
                   <button class="btn" title="Re-apply this domain's nginx config">⟳ sync</button>
                 </form>
                 <% if (d.state !== 'parked') { %>
-                <form method="POST" action="/<%= d.domain %>/cert" onsubmit="return confirm('Renew the shared platform cert (covers all served domains, incl. <%= d.domain %>)?')">
-                  <button class="btn" title="Renew the shared platform cert">🔒 renew cert</button>
+                <form method="POST" action="/<%= d.domain %>/cert" onsubmit="return confirm('Issue/renew the cert for <%= d.domain %>?')">
+                  <button class="btn" title="Issue/renew this domain's own cert">🔒 renew cert</button>
                 </form>
                 <% } %>
                 <form method="POST" action="/<%= d.domain %>/remove" onsubmit="return confirm('Remove <%= d.domain %>?')">

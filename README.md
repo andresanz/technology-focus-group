@@ -18,26 +18,31 @@ node app.js            # listens on 127.0.0.1:4000
 | **redirect** | Serve `/var/www/redirects/<domain>/index.html` (meta-refresh + JS) |
 | **parked** | Serve `/var/www/parked/index.html` |
 
-## One cert for everyone
+## Certs — one per domain
 
-All domains share a single Let's Encrypt SAN cert at `/etc/letsencrypt/live/platform/`.
+Each served domain gets its **own** Let's Encrypt cert at
+`/etc/letsencrypt/live/<domain>/` (cert-name == domain). No shared SAN cert, so
+no 100-name ceiling and each domain renews independently.
 
 Saving a domain in the admin **writes its nginx config and reloads immediately**
-— there is no separate sync step. (A bad config rolls back automatically.)
+— there is no separate sync step. (A bad config rolls back automatically.) A
+served domain that has no cert yet is emitted HTTP-only so it still serves and
+ACME can validate; it flips to HTTPS once its cert exists.
 
 **First time / adding a live or redirect domain:**
-1. Add the domain in the admin and set its state — the nginx config is applied on save.
-2. Click **🔒 Renew Cert** — runs `sudo platform-cert <served domains>` to issue/expand the shared cert, then reloads nginx so the new domain serves over the platform cert.
+1. Add the domain and set its state — the nginx config is applied on save (HTTP-only until a cert exists).
+2. Click **🔒 renew cert** on the domain — runs `sudo site-cert <domain>`, then re-applies so it serves over HTTPS.
 
-Parked domains need no cert. The Linode auto-sync only seeds the registry (as
-parked); it never writes nginx — that happens when you save a domain here.
+Use **🔒 Renew All Certs** to renew every served domain's cert at once. Parked
+domains need no cert. The Linode auto-sync only seeds the registry (as parked);
+it never writes nginx — that happens when you save a domain here.
 
 **Install the cert script (root, once):**
 ```bash
-cp scripts/platform-cert.sh /usr/local/bin/platform-cert
-chmod 755 /usr/local/bin/platform-cert
-echo 'www-data ALL=(ALL) NOPASSWD: /usr/local/bin/platform-cert *' \
-  > /etc/sudoers.d/platform-cert
+cp scripts/site-cert.sh /usr/local/bin/site-cert
+chmod 755 /usr/local/bin/site-cert
+echo 'root ALL=(ALL) NOPASSWD: /usr/local/bin/site-cert *' \
+  > /etc/sudoers.d/site-cert
 ```
 
 ## Parked page

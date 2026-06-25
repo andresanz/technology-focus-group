@@ -212,9 +212,7 @@ app.post('/:domain/sync', requireAuth, (req, res) => {
   res.redirect('/');
 });
 
-// Renew the shared platform cert from a single domain's row. The cert is one
-// SAN cert covering every served domain, so this renews for all of them (and
-// guarantees this domain is included).
+// Issue/renew this domain's own cert, then re-apply so the vhost flips to HTTPS.
 app.post('/:domain/cert', requireAuth, (req, res) => {
   const row = getDomain(req.params.domain);
   if (!row) { req.flash('error', 'Not found'); return res.redirect('/'); }
@@ -223,10 +221,11 @@ app.post('/:domain/cert', requireAuth, (req, res) => {
     return res.redirect('/');
   }
   try {
-    const n = renewPlatformCert();
-    req.flash('success', `Platform cert renewed (${n} served domains, incl. ${row.domain})`);
+    issueCert(row.domain);
+    applyDomain(row);
+    req.flash('success', `Cert issued for ${row.domain} — now served over HTTPS`);
   } catch (e) {
-    req.flash('error', `Cert renewal failed: ${e.message}`);
+    req.flash('error', `Cert issuance failed: ${e.message}`);
   }
   res.redirect('/');
 });
@@ -241,31 +240,24 @@ app.post('/:domain/remove', requireAuth, (req, res) => {
   res.redirect('/');
 });
 
-// Renew the shared platform cert — only served (live/redirect) domains go on the
-// SAN cert. Parked domains are excluded: they don't need a cert, and including
-// every registered domain blows past Let's Encrypt's 100-names-per-cert limit
-// (each domain also carries a www. SAN, so the ceiling is ~50 domains).
-// Throws on no served domains or over the limit; returns the count on success.
-function renewPlatformCert() {
-  const domains = allDomains()
-    .filter(r => r.state === 'live' || r.state === 'redirect')
-    .map(r => r.domain);
-  if (!domains.length) throw new Error('No live/redirect domains to certify (parked domains are skipped)');
-  if (domains.length * 2 > 100) {
-    throw new Error(`${domains.length} served domains exceed the 100-name cert limit (each adds a www. SAN). Reduce served domains or split certs.`);
-  }
-  execSync(`sudo /usr/local/bin/platform-cert ${domains.join(' ')}`, { timeout: 120_000 });
-  reloadNginx();
-  return domains.length;
+// Issue/renew a single domain's own cert (cert-name == domain). Each served
+// domain has an independent cert — no shared SAN cert, no 100-name ceiling.
+function issueCert(domain) {
+  execSync(`sudo /usr/local/bin/site-cert ${domain}`, { timeout: 120_000 });
 }
 
-app.post('/platform-cert', requireAuth, (req, res) => {
-  try {
-    const n = renewPlatformCert();
-    req.flash('success', `Platform cert renewed for ${n} served domain(s)`);
-  } catch (e) {
-    req.flash('error', `Cert renewal failed: ${e.message}`);
+// Renew certs for every served (live/redirect) domain, each independently.
+app.post('/renew-all-certs', requireAuth, (req, res) => {
+  const served = allDomains().filter(r => r.state === 'live' || r.state === 'redirect');
+  if (!served.length) { req.flash('error', 'No live/redirect domains to certify'); return res.redirect('/'); }
+  let ok = 0;
+  const errors = [];
+  for (const row of served) {
+    try { issueCert(row.domain); applyDomain(row); ok++; }
+    catch (e) { errors.push(`${row.domain}: ${e.message.split('\n')[0]}`); }
   }
+  if (errors.length) req.flash('error', `${ok} renewed, errors: ${errors.slice(0, 3).join('; ')}`);
+  else               req.flash('success', `Renewed certs for ${ok} served domain(s)`);
   res.redirect('/');
 });
 
